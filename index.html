@@ -16,17 +16,18 @@
     />
   </head>
   <body>
-    <!-- clickable link that goes to this url with no query params -->
+    <!-- return home -->
     <a href="index.html">Home</a>
 
-    <ul id="dataList" style="display: none; border: 1px solid black"></ul>
+    <div>
+      <ul id="dataList" style="display: none; border: 1px solid black"></ul>
+    </div>
 
-    <!--  table with 2 tabs, outbound + inbound. save tab selection when refreshing -->
     <div id="scheduleTable" style="display: none">
       <a id="outboundLink">Outbound</a>
       <a id="inboundLink">Inbound</a>
       <table>
-        <caption>
+        <caption id="caption">
           MBTA Commuter Rail Schedule
         </caption>
         <thead>
@@ -46,7 +47,7 @@
       <p><em>Last Refreshed: </em><span id="refresh-timestamp"></span></p>
     </div>
 
-    <!-- <div id="api-form">
+    <div id="api-form">
       <details>
         <summary><em>API Key Storage</em></summary>
 
@@ -55,7 +56,7 @@
         <button id="save-button">Save</button>
         <button id="clear-button">Clear</button>
       </details>
-    </div> -->
+    </div>
 
     <script src="app.js"></script>
   </body>
