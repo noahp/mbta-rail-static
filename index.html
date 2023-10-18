@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MBTA Rail Times</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/purecss@3.0.0/build/pure-min.css"
+      integrity="sha384-X38yfunGUhNzHpBaEBsWLO+A0HDYOQi8ufWDkZ0k9e0eXz/tH3II7uKZ9msv++Ls"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚂</text></svg>"
+    />
+  </head>
+  <body>
+    <!-- clickable link that goes to this url with no query params -->
+    <a href="index.html">Home</a>
+
+    <ul id="dataList" style="display: none; border: 1px solid black"></ul>
+
+    <!--  table with 2 tabs, outbound + inbound. save tab selection when refreshing -->
+    <div id="scheduleTable" style="display: none">
+      <a id="outboundLink">Outbound</a>
+      <a id="inboundLink">Inbound</a>
+      <table>
+        <caption>
+          MBTA Commuter Rail Schedule
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Predicted Time</th>
+            <th scope="col">Scheduled Time</th>
+            <th scope="col">Train #</th>
+            <th scope="col">Track #</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody id="scheduleBody"></tbody>
+      </table>
+    </div>
+
+    <div id="refresh-time">
+      <p><em>Last Refreshed: </em><span id="refresh-timestamp"></span></p>
+    </div>
+
+    <!-- <div id="api-form">
+      <details>
+        <summary><em>API Key Storage</em></summary>
+
+        <label for="api-key">Enter API Key:</label>
+        <input type="text" id="api-key" placeholder="Enter your API key" />
+        <button id="save-button">Save</button>
+        <button id="clear-button">Clear</button>
+      </details>
+    </div> -->
+
+    <script src="app.js"></script>
+  </body>
+</html>
