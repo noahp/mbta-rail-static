@@ -10,6 +10,9 @@ key usage, and I'm being extremely awful about issuing too many API requests
 
 - solve insane js CORS silliness so API key works
 - reduce the API requests by instead parsing more JSON blobs after fetching
-  instead of relying on API calls
+  instead of relying on API calls. can probably do ~ 2 total API requests to
+  refresh the final "route + stop + direction" page: `/schedules` +
+  `/predictions`. I think all the data is in there, so just filtering by route +
+  direction should give enough JSON to populate each `stop`
 
 I also don't have the "platform" stuff figured out :( TODO.

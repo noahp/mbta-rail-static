@@ -29,9 +29,9 @@ function clearFormAndData() {
 }
 
 // promise-based wrapper around fetch that adds the "x-api-key: API_KEY" header
-function fetchWithAPIKey(url) {
+function fetchToJsonWithAPIKey(url) {
   // ughhhh this stupid cors stuff is breaking when i try to pass api_key killme
-  return fetch(url);
+  return fetch(url).then((response) => response.json());
 
   const apiKey = localStorage.getItem("api-key");
 
@@ -49,23 +49,27 @@ function displayRefreshTime() {
   const now = new Date();
   refreshTimestamp.textContent = now.toLocaleString();
 }
+
+function createRouteRow(route) {
+  const longName = route.attributes.long_name;
+  const listItem = document.createElement("li");
+  const link = document.createElement("a");
+  link.textContent = longName;
+  link.href = `?route_id=${encodeURIComponent(route.id)}`;
+  listItem.appendChild(link);
+
+  return listItem;
+}
+
 // Function to fetch route long names from the API
-function fetchRouteLongNames() {
-  fetchWithAPIKey(
+function showRouteLongNames() {
+  fetchToJsonWithAPIKey(
     "https://api-v3.mbta.com/routes?filter%5Btype%5D=2&fields%5Broute%5D=long_name"
   )
-    .then((response) => response.json())
     .then((data) => {
       const dataList = document.getElementById("dataList");
       data.data.forEach((route) => {
-        const longName = route.attributes.long_name;
-        const stopId = route.id;
-        const listItem = document.createElement("li");
-        const link = document.createElement("a");
-        link.textContent = longName;
-        link.href = `?route_id=${encodeURIComponent(stopId)}`;
-        listItem.appendChild(link);
-        dataList.appendChild(listItem);
+        dataList.appendChild(createRouteRow(route));
       });
     })
     .then(() => {
@@ -86,27 +90,30 @@ function getURLParams() {
   };
 }
 
+function createRouteStopRow(stop, stopId, routeId) {
+  const stopName = stop.attributes.name;
+  const listItem = document.createElement("li");
+  const link = document.createElement("a");
+  link.textContent = stopName;
+  link.href = `?route_id=${encodeURIComponent(
+    routeId
+  )}&stop_id=${encodeURIComponent(stopId)}`;
+  listItem.appendChild(link);
+
+  return listItem;
+}
+
 // Function to fetch route stop names from a route ID
-function fetchRouteStopNames(routeId) {
-  fetchWithAPIKey(
+function showRouteStopNames(routeId) {
+  fetchToJsonWithAPIKey(
     `https://api-v3.mbta.com/stops?filter%5Broute%5D=${encodeURIComponent(
       routeId
     )}&fields%5Bstop%5D=name`
   )
-    .then((response) => response.json())
     .then((data) => {
       const dataList = document.getElementById("dataList");
       data.data.forEach((stop) => {
-        const stopName = stop.attributes.name;
-        const stopId = stop.id;
-        const listItem = document.createElement("li");
-        const link = document.createElement("a");
-        link.textContent = stopName;
-        link.href = `?route_id=${encodeURIComponent(
-          routeId
-        )}&stop_id=${encodeURIComponent(stopId)}`;
-        listItem.appendChild(link);
-        dataList.appendChild(listItem);
+        dataList.appendChild(createRouteStopRow(stop, stop.id, routeId));
       });
     })
     .then(() => {
@@ -118,51 +125,55 @@ function fetchRouteStopNames(routeId) {
   document.getElementById("dataList").style.display = "block";
 }
 
-function getTrainFromSchedule(schedule, trainColumn) {
-  const tripId = schedule.relationships.trip.data.id;
-  const fetchUrl = `https://api-v3.mbta.com/trips/${encodeURIComponent(
-    tripId
-  )}`;
-  fetchWithAPIKey(fetchUrl)
-    .then((response) => response.json())
-    .then((data) => {
-      trainColumn.textContent = data.data.attributes.name;
-    })
-    .catch((error) => {
-      console.error("Error fetching data:", error);
-      trainColumn.textContent = "Unknown";
-    });
-}
-
 function getPredictionFromStop(schedule, stopId, predictedTime) {
   // the API is:
   // /predictions?filter[trip]=TRIP_ID&filter[stop]=STOP_ID
   const tripId = schedule.relationships.trip.data.id;
-  const fetchUrl = `https://api-v3.mbta.com/predictions?filter%5Btrip%5D=${encodeURIComponent(
-    tripId
-  )}&filter%5Bstop%5D=${encodeURIComponent(stopId)}`;
-  fetchWithAPIKey(fetchUrl)
-    .then((response) => response.json())
-    .then((data) => {
-      const prediction = data.data[0];
-      if (!prediction) {
-        throw new Error("No prediction found");
-      }
-      const predictedTimeDate = new Date(
-        prediction.attributes.arrival_time ||
-          prediction.attributes.departure_time
-      );
-      predictedTime.textContent = predictedTimeDate.toLocaleTimeString();
-    })
-    .catch((error) => {
-      console.warn("Error fetching data:", error);
-      predictedTime.textContent = "Unknown";
-    });
+  // find the prediction with the same trip_id and stop_id
+  console.log("looking for trip", tripId, "with stop", stopId);
+  console.log("from", predictedTime.data);
+  const prediction = predictedTime.data.find(
+    (prediction) =>
+      prediction.relationships.trip.data.id == tripId &&
+      // remove leading "place-" substring from stopId
+      prediction.relationships.stop.data.id.includes(stopId.slice(6))
+  );
+  if (prediction) {
+    console.log("found prediction", prediction);
+    const predictedTimeDate = new Date(
+      prediction.attributes.arrival_time || prediction.attributes.departure_time
+    );
+    return [
+      predictedTimeDate.toLocaleTimeString(),
+      prediction.attributes.status,
+      prediction.relationships.stop.data.id,
+    ];
+  } else {
+    return ["", "", null];
+  }
 }
 
-function createStopRow(stop, stopId, scheduleBody) {
-  console.log(stop);
-  // create a row: columns are Arrival Time,Departure Time,Train #,Track #,Status
+function getTrainFromSchedule(scheduledStop, tripData) {
+  // from the scheduledStop, get the related trip ID, then look up the trip name
+  const tripId = scheduledStop.relationships.trip.data.id;
+  // console.log("looking for trip", tripId);
+  // console.log("in data", tripData.data);
+  const trip = tripData.data.find((trip) => trip.id == tripId);
+
+  return trip.attributes.name || "";
+}
+
+function createStopRow(
+  scheduledStop,
+  stopId,
+  predictionData,
+  tripData,
+  stopData,
+  scheduleBody
+) {
+  // console.log(scheduledStop);
+
+  // create a row: columns are Predicted Time,Scheduled Time,Train #,Track #,Status
   const tableRow = document.createElement("tr");
   const predictedTime = document.createElement("td");
   const scheduledTime = document.createElement("td");
@@ -170,15 +181,27 @@ function createStopRow(stop, stopId, scheduleBody) {
   const trackColumn = document.createElement("td");
   const statusColumn = document.createElement("td");
 
-  const predictedTimeDate = new Date(
-    stop.attributes.arrival_time || stop.attributes.departure_time
+  const scheduledTimeDate = new Date(
+    scheduledStop.attributes.arrival_time ||
+      scheduledStop.attributes.departure_time
   );
 
-  getPredictionFromStop(stop, stopId, predictedTime);
-  scheduledTime.textContent = predictedTimeDate.toLocaleTimeString();
-  getTrainFromSchedule(stop, trainColumn);
-  trackColumn.textContent = stop.attributes.platform_name;
-  statusColumn.textContent = stop.attributes.status;
+  // arrival/departure time, status, and stop info (station) come from the
+  // prediction data
+  var stopInfoId = null;
+  [predictedTime.textContent, statusColumn.textContent, stopInfoId] =
+    getPredictionFromStop(scheduledStop, stopId, predictionData);
+  scheduledTime.textContent = scheduledTimeDate.toLocaleTimeString();
+  trainColumn.textContent = getTrainFromSchedule(scheduledStop, tripData);
+
+  // TODO unfortunately need to collect all of these, then request them all
+  // explicitly as /stops?filter[id]=id1,id2,id3,... . the generic /stops fetch seems
+  // to only have "parent station" entries, like "place-WML-0340", and not the
+  // "prediction-stop" ids like "NEC-2287-10"
+  if (stopInfoId) {
+    console.log("looking for stop", stopInfoId, "in data", stopData);
+    trackColumn.textContent = "";
+  }
 
   predictedTime.style.border = "1px solid black";
   scheduledTime.style.border = "1px solid black";
@@ -195,6 +218,53 @@ function createStopRow(stop, stopId, scheduleBody) {
   tableRow.style.border = "1px solid black";
 
   scheduleBody.appendChild(tableRow);
+}
+
+// time in HH:MM
+const todayTimeIso = new Date().toTimeString().slice(0, 5);
+
+function getScheduleFromStop(stopId, routeId, directionId) {
+  // sort by arrival time for inbound, departure time for outbound
+  const sortKey = directionId == 0 ? "departure_time" : "arrival_time";
+
+  const fetchUrl = `https://api-v3.mbta.com/schedules?filter%5Broute%5D=${encodeURIComponent(
+    routeId
+  )}&filter%5Bstop%5D=${encodeURIComponent(
+    stopId
+  )}&filter%5Bdirection_id%5D=${encodeURIComponent(
+    directionId
+  )}&filter%5Bmin_time%5D=${encodeURIComponent(
+    todayTimeIso
+  )}&fields%5Bschedule%5D=direction_id,stop,arrival_time,departure_time&sort=${sortKey}`;
+
+  // wait for the fetch to complete
+  return fetchToJsonWithAPIKey(fetchUrl);
+}
+
+function getPredictionsForRouteAndDirection(routeId, directionId) {
+  const fetchUrl = `https://api-v3.mbta.com/predictions?filter%5Broute%5D=${encodeURIComponent(
+    routeId
+  )}&filter%5Bdirection_id%5D=${encodeURIComponent(directionId)}`;
+  return fetchToJsonWithAPIKey(fetchUrl);
+}
+
+function getTripsForRouteAndDirection(routeId, directionId) {
+  // set page[limit]=1000 to get all trips?
+  const fetchUrl = `https://api-v3.mbta.com/trips?filter%5Broute%5D=${encodeURIComponent(
+    routeId
+  )}&filter%5Bdirection_id%5D=${encodeURIComponent(
+    directionId
+  )}&page%5Blimit%5D=1000`;
+  return fetchToJsonWithAPIKey(fetchUrl);
+}
+
+function getStopsForRouteAndDirection(routeId, directionId) {
+  const fetchUrl = `https://api-v3.mbta.com/stops?filter%5Broute%5D=${encodeURIComponent(
+    routeId
+  )}&filter%5Bdirection_id%5D=${encodeURIComponent(
+    directionId
+  )}&fields%5Bstop%5D=name,platform_name,platform_code`;
+  return fetchToJsonWithAPIKey(fetchUrl);
 }
 
 // Show stops for route + stop + direction (optional)
@@ -214,32 +284,43 @@ function showStopsAndDirection(routeId, stopId, direction) {
     directionId == 0 ? "Outbound" : "Inbound"
   }`;
 
-  // date in YYYY-MM-DD
-  const todayDateIso = new Date().toISOString().split("T")[0];
-  // time in HH:MM
-  const todayTimeIso = new Date().toTimeString().slice(0, 5);
+  // 1. get all scheduled stops for this route + stop + direction
+  getScheduleFromStop(stopId, routeId, directionId)
+    .then((scheduleData) => {
+      // console.log(scheduleData);
 
-  // sort by arrival time for inbound, departure time for outbound
-  const sortKey = directionId == 0 ? "departure_time" : "arrival_time";
+      // 2. get all predictions for the route + direction
+      getPredictionsForRouteAndDirection(routeId, directionId).then(
+        (predictionData) => {
+          // console.log(predictionData);
 
-  const fetchUrl = `https://api-v3.mbta.com/schedules?filter%5Broute%5D=${encodeURIComponent(
-    routeId
-  )}&filter%5Bstop%5D=${encodeURIComponent(
-    stopId
-  )}&filter%5Bdirection_id%5D=${encodeURIComponent(
-    directionId
-  )}&filter%5Bmin_time%5D=${encodeURIComponent(
-    todayTimeIso
-  )}&fields%5Bschedule%5D=direction_id,stop,arrival_time,departure_time&sort=${sortKey}`;
+          // 3. get all trips for the route + direction
+          getTripsForRouteAndDirection(routeId, directionId).then(
+            (tripData) => {
+              // console.log(tripData);
 
-  fetchWithAPIKey(fetchUrl)
-    .then((response) => response.json())
-    .then((data) => {
-      console.log(data);
-      const scheduleBody = document.getElementById("scheduleBody");
-      data.data.forEach((stop) => {
-        createStopRow(stop, stopId, scheduleBody);
-      });
+              // 4. get all stops for the route + direction
+              getStopsForRouteAndDirection(routeId, directionId).then(
+                (stopData) => {
+                  console.log(stopData);
+
+                  const scheduleBody = document.getElementById("scheduleBody");
+                  scheduleData.data.forEach((scheduledStop) => {
+                    createStopRow(
+                      scheduledStop,
+                      stopId,
+                      predictionData,
+                      tripData,
+                      stopData,
+                      scheduleBody
+                    );
+                  });
+                }
+              );
+            }
+          );
+        }
+      );
     })
     .then(() => {
       document.getElementById("scheduleTable").style.display = "block";
@@ -247,6 +328,8 @@ function showStopsAndDirection(routeId, stopId, direction) {
     .catch((error) => {
       console.error("Error fetching data:", error);
     });
+
+  // now set the element visible
   document.getElementById("dataList").style.display = "block";
 }
 
@@ -255,9 +338,9 @@ function handleURLParams() {
   const params = getURLParams();
 
   if (!params.route_id) {
-    fetchRouteLongNames();
+    showRouteLongNames();
   } else if (params.route_id && !params.stop_id) {
-    fetchRouteStopNames(params.route_id);
+    showRouteStopNames(params.route_id);
   } else if (params.route_id && params.stop_id) {
     showStopsAndDirection(params.route_id, params.stop_id, params.direction);
   }
